@@ -40,21 +40,24 @@ instance Countable Bool where
 instance Countable Char where
   counter = boundedEnumCounter
 
+instance Countable Ordering where
+  counter = boundedEnumCounter
+
 -- not portable
 instance Countable Int where
   counter = boundedEnumCounter
 
 instance Countable Int8 where
-  counter = boundedEnumCounter
+  counter = boundedIntegralCounter
 
 instance Countable Int16 where
-  counter = boundedEnumCounter
+  counter = boundedIntegralCounter
 
 instance Countable Int32 where
-  counter = boundedEnumCounter
+  counter = boundedIntegralCounter
 
 instance Countable Int64 where
-  counter = boundedEnumCounter
+  counter = boundedIntegralCounter
 
 instance Countable () where
   counter = unitCounter

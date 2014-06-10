@@ -54,6 +54,11 @@ dropCounter skip aC =
     cFromPos = cFromPos aC . (+skip)
   }
 
+-- | If @n@ is greater than the count of @c@, @'takeCounter' n c@ creates a counter for the first @n@ elements.
+takeCounter :: Integer -> Counter a -> Counter a
+takeCounter n aC =
+  aC{ cCount = Just $ maybe n (min n) $ cCount aC }
+
 -- | Given two counters, @a@ and @b@, creates a counter for all 'Left'-tagged @a@ values and 'Right'-tagged @b@ values.
 sumCounter :: Counter a -> Counter b -> Counter (Either a b)
 sumCounter aC bC =
@@ -137,6 +142,7 @@ prodCounter aC bC =
            in  head $ dropWhile (not . isRoot) iters
 
 -- | A counter for any 'Bounded' 'Enum'. @['minBound' :: a ..]@ maps to @[0..]@.
+-- Invalid if @'fromEnum' ('minBound' :: a)@ or @'fromEnum' ('maxBound' :: a)@ overflows.
 boundedEnumCounter :: (Bounded a, Enum a) => Counter a
 boundedEnumCounter = counter
   where
@@ -184,18 +190,26 @@ listCounter aC =
       Left (a, as) -> (a:as)
       Right () -> []
 
--- | Maps [0,1,-1,2,-2,..] to [0..]
+-- | Maps [0,-1,1,-2,2,..] to [0..]
 integerCounter :: Counter Integer
 integerCounter =
   UnsafeMkCounter {
     cCount = Nothing,
-    cToPos = \i -> if i > 0
-      then i*2 - 1
-      else abs i*2,
+    cToPos = \i -> if i >= 0
+      then i*2
+      else abs i*2 - 1,
     cFromPos = \n -> case (n + 1) `divMod` 2 of
-      (n', 0) -> n'
-      (n', 1) -> negate n'
+      (n', 0) -> negate n'
+      (n', 1) -> n'
   }
+
+-- | Similar to integerCounter, but bounded. Doesn't overflow, unlike boundedEnumCounter.
+boundedIntegralCounter :: (Bounded a, Integral a) => Counter a
+boundedIntegralCounter =
+  counter
+  where
+    counter = takeCounter (max - min + 1) $ isoCounter integerCounter toInteger fromInteger
+    [min, max] = map toInteger [minBound, maxBound `asTypeOf` cFromPos counter 0]
 
 -- | All values in the given counter, from the @0@ correspondent upwards.
 allValuesFor :: Counter a -> [a]
