@@ -3,12 +3,22 @@ module Data.Count.Counter where
 import Control.Applicative ((<$>), (<*>))
 import Data.Tuple (swap)
 
+-- | A @'Counter' a@ maps bijectively between a subset of values of type @a@ and some possibly empty or infinite prefix of @[0..]@.
+--
+-- 'cCount' is @'Just' n@ when the counter is finite and manages @n@ values, or @'Nothing'@ when infinite.
+--
+-- 'cToPos' converts a managed value to its natural number (starting from 0).
+--
+-- 'cFromPos' converts a natural number to its managed value.
+--
+-- @'cToPos' c . 'cFromPos' c@ must be the identity function. This invariant is maintained using the combinators below.
 data Counter a = UnsafeMkCounter {
   cCount :: Maybe Integer,
   cToPos :: a -> Integer,
   cFromPos :: Integer -> a
 }
 
+-- | A counter for the single unit value.
 unitCounter :: Counter ()
 unitCounter =
   UnsafeMkCounter {
@@ -17,6 +27,7 @@ unitCounter =
     cFromPos = \0 -> ()
   }
 
+-- | A counter for an empty set of values, for any type. 
 voidCounter :: Counter a
 voidCounter =
   UnsafeMkCounter {
@@ -25,6 +36,7 @@ voidCounter =
     cFromPos = const undefined
   }
 
+-- | Counts through the natural numbers: @[0..]@ maps simply to @[0..]@.
 natCounter :: Counter Integer
 natCounter =
   UnsafeMkCounter {
@@ -33,6 +45,7 @@ natCounter =
     cFromPos = id
   }
 
+-- | @'dropCounter' n c@ drops the first @n@ elements from the given counter. @'cToPos' ('dropCounter' n c) 0@ is equivalent to @'cToPos' c 0@.
 dropCounter :: Integer -> Counter a -> Counter a
 dropCounter skip aC =
   UnsafeMkCounter {
@@ -41,6 +54,7 @@ dropCounter skip aC =
     cFromPos = cFromPos aC . (+skip)
   }
 
+-- | Given two counters, @a@ and @b@, creates a counter for all 'Left'-tagged @a@ values and 'Right'-tagged @b@ values.
 sumCounter :: Counter a -> Counter b -> Counter (Either a b)
 sumCounter aC bC =
   UnsafeMkCounter {
@@ -59,8 +73,8 @@ sumCounter aC bC =
 
     cFromPos = case (cCount aC, cCount bC) of
       (Nothing, Nothing) -> \n -> case n `divMod` 2 of
-        (n', 0) -> Left $ cFromPos aC $ n
-        (n', 1) -> Right $ cFromPos bC $ n
+        (n', 0) -> Left $ cFromPos aC $ n'
+        (n', 1) -> Right $ cFromPos bC $ n'
 
       (Just acount, _) -> \n -> if n < acount
         then Left $ cFromPos aC $ n
@@ -73,6 +87,7 @@ sumCounter aC bC =
       Left a -> Right a
       Right a -> Left a
       
+-- | Creates a counter for the Cartesian product of values in two given counters.
 prodCounter :: Counter a -> Counter b -> Counter (a, b)
 prodCounter aC bC =
   UnsafeMkCounter {
@@ -121,7 +136,7 @@ prodCounter aC bC =
                isRoot r  =  sq r <= n && n < sq (r+1)
            in  head $ dropWhile (not . isRoot) iters
 
-
+-- | A counter for any @Bounded@ @Enum@. @['minBound' :: a ..]@ maps to @[0..]@.
 boundedEnumCounter :: (Bounded a, Enum a) => Counter a
 boundedEnumCounter = counter
   where
@@ -132,16 +147,13 @@ boundedEnumCounter = counter
       cFromPos = \n -> toEnum . fromInteger $ min + n
     }
 
-unsafeIsoCounter :: Counter a -> (Maybe Integer) -> (b -> a) -> (a -> b) -> Counter b
-unsafeIsoCounter aC count b2a a2b =
+isoCounter :: Counter a -> (b -> a) -> (a -> b) -> Counter b
+isoCounter aC b2a a2b =
   UnsafeMkCounter {
-    cCount = count,
+    cCount = cCount aC,
     cToPos = cToPos aC . b2a,
     cFromPos = a2b . cFromPos aC
   }
-
-isoCounter :: Counter a -> (b -> a) -> (a -> b) -> Counter b
-isoCounter aC = unsafeIsoCounter aC (cCount aC)
 
 maybeCounter :: Counter a -> Counter (Maybe a)
 maybeCounter aC = isoCounter (sumCounter aC unitCounter) f g
@@ -153,6 +165,9 @@ maybeCounter aC = isoCounter (sumCounter aC unitCounter) f g
       Left a -> Just a
       Right () -> Nothing
 
+-- | Counter for all lists of all values in given counter.
+--
+-- The count is 1 (the only value being the empty list) if the given counter is empty, infinite otherwise.
 listCounter :: Counter a -> Counter [a]
 listCounter aC =
   counter
@@ -160,7 +175,8 @@ listCounter aC =
     -- Counter (Either (@aC, [a]) ())
     inner = sumCounter (prodCounter aC counter) unitCounter
     count = succ <$> cCount (prodCounter aC integerCounter)
-    counter = unsafeIsoCounter inner count fromLs toLs
+    -- override recursive count
+    counter = (isoCounter inner fromLs toLs){ cCount = count }
     fromLs l = case l of
       (a:as) -> Left (a, as)
       [] -> Right ()
@@ -168,6 +184,7 @@ listCounter aC =
       Left (a, as) -> (a:as)
       Right () -> []
 
+-- | Maps [0,1,-1,2,-2,..] to [0..]
 integerCounter :: Counter Integer
 integerCounter =
   UnsafeMkCounter {
@@ -180,6 +197,7 @@ integerCounter =
       (n', 1) -> negate n'
   }
 
+-- | All values in the given counter, from the @0@ correspondent upwards.
 allValuesFor :: Counter a -> [a]
 allValuesFor aC =
   map (cFromPos aC) range
