@@ -136,7 +136,7 @@ prodCounter aC bC =
                isRoot r  =  sq r <= n && n < sq (r+1)
            in  head $ dropWhile (not . isRoot) iters
 
--- | A counter for any @Bounded@ @Enum@. @['minBound' :: a ..]@ maps to @[0..]@.
+-- | A counter for any 'Bounded' 'Enum'. @['minBound' :: a ..]@ maps to @[0..]@.
 boundedEnumCounter :: (Bounded a, Enum a) => Counter a
 boundedEnumCounter = counter
   where

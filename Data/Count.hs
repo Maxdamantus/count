@@ -72,13 +72,10 @@ instance (Countable a, Countable b, Countable c) => Countable (a, b, c) where
       g (a, (b, c)) = (a, b, c)
 
 instance (Countable a, Countable b, Countable c, Countable d) => Countable (a, b, c, d) where
-  counter = isoCounter (prodCounter counter (prodCounter counter (prodCounter counter counter))) f g
+  counter = isoCounter (prodCounter counter counter) f g
     where
-      f (a, b, c, d) = (a, (b, (c, d)))
-      g (a, (b, (c, d))) = (a, b, c, d)
-
-class Countable1 f where
-  counter1 :: Counter a -> Counter (f a)
+      f (a, b, c, d) = ((a, b), (c, d))
+      g ((a, b), (c, d)) = (a, b, c, d)
 
 instance Countable a => Countable [a] where
   counter = listCounter counter
